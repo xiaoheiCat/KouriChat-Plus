@@ -69,7 +69,7 @@ API平台：[Kouri API（推荐）](https://api.kourichat.com/)（注册送2元�
 
 ### ✅ 已实现
 
-- 微信无缝接入 & 多用户支持
+- 多用户支持
 - 沉浸式角色扮演（支持群聊）
 - 智能对话分段 & 情感化表情包
 - 图像生成 & 图片识别（Kimi集成）
@@ -88,12 +88,10 @@ API平台：[Kouri API（推荐）](https://api.kourichat.com/)（注册送2元�
 
 ### 环境准备
 
-1. **备用设备**：手机/模拟器/双开应用（微信电脑端登录必须有一个移动设备同时登录）
-2. **微信小号**：能登录PC版即可
-3. **API密钥**：
+**API密钥**：
 
-- [项目直属API（推荐）](https://api.kourichat.com/)（注册送2刀）
-- [获取DeepSeek API Key](https://cloud.siliconflow.cn/i/aQXU6eC5)（免费15元额度）
+- [项目直属API](https://api.kourichat.com/)
+- [获取DeepSeek API Key](https://cloud.siliconflow.cn/i/aQXU6eC5)
 
 ### 部署流程
 
@@ -118,7 +116,7 @@ pip install -r requirements.txt
 #调整配置文件
 python run_config_web.py
 
-# 启动程序 或 使用WebUI启动 (在此之前，请启动微信！不然会提示未找到窗口句柄...）
+# 启动程序 或 使用WebUI启动
 python run.py
 ```
 如果您是服务器部署 推荐安装uu远程 自带不休眠功能 用RDP远程的用户断开连接务必运行断开连接脚本！！！<br>
