@@ -2,8 +2,9 @@ version: "3.9"
 
 services:
   kourichat:
+    image: ghcr.io/xiaoheicat/kourichat-plus:latest
     build: .
-    container_name: kourichat_daily
+    container_name: kourichat-plus
     volumes:
       - ./data:/app/data  # 配置、数据持久化
     ports:
