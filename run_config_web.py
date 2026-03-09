@@ -470,6 +470,11 @@ def parse_config_groups() -> Dict[str, Dict[str, Any]]:
                     "value": config.wecom.enable_markdown,
                     "type": "boolean",
                     "description": "是否发送 Markdown 消息（仅企业微信内渲染，个人微信不支持）"
+                },
+                "WECOM_PROXY_URL": {
+                    "value": config.wecom.proxy_url,
+                    "type": "string",
+                    "description": "代理地址（可选，如 http://127.0.0.1:7890，用于解决出口 IP 限制）"
                 }
             }
         )
