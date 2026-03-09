@@ -5,8 +5,9 @@ services:
     build: .
     container_name: kourichat_daily
     volumes:
-      - ./:/app
+      - ./data:/app/data  # 配置、数据持久化
     ports:
-      - "7860:7860"        # 主程序端口（视 run.py 默认情况）
+      - "7860:7860"        # WebUI 端口
+      - "8081:8081"        # 企业微信 Webhook 回调端口
     command: ["python", "run.py"]
     restart: unless-stopped

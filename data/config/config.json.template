@@ -257,6 +257,54 @@
                     "description": "定时任务列表"
                 }
             }
+        },
+        "wecom_settings": {
+            "title": "企业微信配置",
+            "settings": {
+                "corp_id": {
+                    "value": "",
+                    "type": "string",
+                    "description": "企业微信 CorpId（在「我的企业」底部查看）"
+                },
+                "corp_secret": {
+                    "value": "",
+                    "type": "string",
+                    "description": "自建应用的 Secret",
+                    "is_secret": true
+                },
+                "agent_id": {
+                    "value": "",
+                    "type": "string",
+                    "description": "自建应用的 AgentId"
+                },
+                "callback_token": {
+                    "value": "",
+                    "type": "string",
+                    "description": "接收消息配置中自定义的 Token",
+                    "is_secret": true
+                },
+                "callback_aes_key": {
+                    "value": "",
+                    "type": "string",
+                    "description": "接收消息配置中的 EncodingAESKey（43字符）",
+                    "is_secret": true
+                },
+                "port": {
+                    "value": 8081,
+                    "type": "number",
+                    "description": "Webhook 监听端口（默认 8081）"
+                },
+                "callback_path": {
+                    "value": "/wecom/callback",
+                    "type": "string",
+                    "description": "Webhook 回调路径"
+                },
+                "enable_markdown": {
+                    "value": false,
+                    "type": "boolean",
+                    "description": "是否发送 Markdown 消息（仅企业微信内渲染，个人微信不支持）"
+                }
+            }
         }
     }
 }
