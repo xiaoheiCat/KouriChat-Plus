@@ -4,7 +4,7 @@ fish-audio-sdk
 openai
 pandas
 psutil
-Requests
+Requests[socks]
 urllib3
 certifi
 snownlp
