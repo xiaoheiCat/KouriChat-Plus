@@ -6,15 +6,16 @@ import sys
 from datetime import datetime
 from typing import Dict, List
 
-# Windows 专用依赖（企业微信模式下不需要）
-if sys.platform.startswith('win'):
-    from wxauto import WeChat
-else:
-    WeChat = None
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
-from modules.reminder.call import Call
-from modules.tts.service import tts
+
+# Windows 专用依赖（语音通话功能仅 Windows 可用）
+if sys.platform.startswith('win'):
+    from modules.reminder.call import Call
+    from modules.tts.service import tts
+else:
+    Call = None
+    tts = None
+
 from modules.memory import MemoryService
 from src.handlers.message import MessageHandler
 from src.services.ai.llm_service import LLMService
@@ -42,7 +43,6 @@ class ReminderTask:
 class ReminderService:
     def __init__(self, message_handler: MessageHandler, mem_service: MemoryService):
         self.message_handler = message_handler
-        self.wx = message_handler.wx
         self.mem_service = mem_service
         self.llm_service = message_handler.deepseek
         self.active_reminders: Dict[str, ReminderTask] = {}
@@ -65,18 +65,22 @@ class ReminderService:
                     del self.active_reminders[task.task_id]
             for task in due_tasks:
                 logger.info(f"到达提醒时间，执行提醒: {task.task_id}")
-                self._do_remind(task, self.wx)
+                self._do_remind(task)
             time.sleep(1)
 
-    def _do_remind(self, task: ReminderTask, wx: WeChat):
+    def _do_remind(self, task: ReminderTask):
         try:
             prompt = self._get_reminder_prompt(task.content)
             logger.debug(f"生成提醒消息 - 用户: {task.sender_name}, 类型: {task.reminder_type}, 提示词: {prompt}")
 
-            if task.reminder_type == "voice":
-                Call(wx=wx, who=task.sender_name, audio_file_path=task.audio_path)
-                tts._del_audio_file(task.audio_path)
+            if task.reminder_type == "voice" and sys.platform.startswith('win') and Call is not None:
+                # 语音通话仅在 Windows 平台可用（依赖 wxauto）
+                Call(wx=None, who=task.sender_name, audio_file_path=task.audio_path)
+                if tts:
+                    tts._del_audio_file(task.audio_path)
             else:
+                if task.reminder_type == "voice":
+                    logger.warning("语音通话功能仅在 Windows 平台可用，将使用文本提醒代替")
                 self.message_handler.handle_user_message(
                     content=prompt,
                     chat_id=task.chat_id,
@@ -111,7 +115,7 @@ class ReminderService:
         try:
             task_id = f"reminder_{chat_id}_{datetime.now().timestamp()}"
             task = ReminderTask(task_id, chat_id, target_time, content, sender_name, reminder_type)
-            if reminder_type == "voice":
+            if reminder_type == "voice" and tts is not None:
                 logger.info("检测到语音提醒任务，预生成回复中")
                 remind_text = self._remind_text_generate(remind_content=content, sender_name=sender_name)
                 logger.info(f"预生成回复:{tts._clear_tts_text(remind_text)}")
@@ -131,6 +135,13 @@ class ReminderService:
                     with self._lock:
                         self.active_reminders[task_id] = task
                     logger.info(f"提醒任务已添加。提醒时间: {target_time}, 内容: {content}，用户：{sender_name}，类型：{reminder_type}")
+            elif reminder_type == "voice" and tts is None:
+                # 非 Windows 平台不支持语音提醒，降级为文本提醒
+                logger.warning("语音提醒功能仅在 Windows 平台可用，将使用文本提醒代替")
+                task = ReminderTask(task_id, chat_id, target_time, content, sender_name, reminder_type="text")
+                with self._lock:
+                    self.active_reminders[task_id] = task
+                logger.info(f"提醒任务已添加（降级为文本）。提醒时间: {target_time}, 内容: {content}，用户：{sender_name}")
             else:
                 with self._lock:
                     self.active_reminders[task_id] = task

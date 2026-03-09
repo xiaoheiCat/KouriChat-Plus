@@ -2818,7 +2818,13 @@ def dismiss_announcement():
 @app.route('/reconnect_wechat')
 def reconnect_wechat():
     try:
-        # 导入微信登录点击器
+        if not sys.platform.startswith('win'):
+            return jsonify({
+                'status': 'error',
+                'message': '微信重连功能仅在 Windows 平台可用（企业微信模式无需此功能）'
+            })
+
+        # 导入微信登录点击器（仅 Windows）
         from src.Wechat_Login_Clicker.Wechat_Login_Clicker import click_wechat_buttons
 
         # 执行点击操作
