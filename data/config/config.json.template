@@ -303,6 +303,11 @@
                     "value": false,
                     "type": "boolean",
                     "description": "是否发送 Markdown 消息（仅企业微信内渲染，个人微信不支持）"
+                },
+                "proxy_url": {
+                    "value": "",
+                    "type": "string",
+                    "description": "代理地址（可选，如 http://127.0.0.1:7890，用于解决出口 IP 限制）"
                 }
             }
         }

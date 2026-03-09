@@ -710,6 +710,7 @@ def update_config_value(config_data, key, value):
             'WECOM_PORT': ['categories', 'wecom_settings', 'settings', 'port', 'value'],
             'WECOM_CALLBACK_PATH': ['categories', 'wecom_settings', 'settings', 'callback_path', 'value'],
             'WECOM_ENABLE_MARKDOWN': ['categories', 'wecom_settings', 'settings', 'enable_markdown', 'value'],
+            'WECOM_PROXY_URL': ['categories', 'wecom_settings', 'settings', 'proxy_url', 'value'],
         }
 
         if key in mapping:
@@ -829,6 +830,8 @@ def update_config_value(config_data, key, value):
                     current['categories']['wecom_settings']['settings']['callback_path'] = {'value': value, 'type': 'string'}
                 elif key == 'WECOM_ENABLE_MARKDOWN':
                     current['categories']['wecom_settings']['settings']['enable_markdown'] = {'value': value if isinstance(value, bool) else (value.lower() == 'true' if isinstance(value, str) else bool(value)), 'type': 'boolean'}
+                elif key == 'WECOM_PROXY_URL':
+                    current['categories']['wecom_settings']['settings']['proxy_url'] = {'value': value, 'type': 'string'}
                 return
 
 
