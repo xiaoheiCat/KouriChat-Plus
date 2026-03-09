@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  kourichat:
+    build: .
+    container_name: kourichat_daily
+    volumes:
+      - ./:/app
+    ports:
+      - "7860:7860"        # 主程序端口（视 run.py 默认情况）
+    command: ["python", "run.py"]
+    restart: unless-stopped

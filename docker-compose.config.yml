@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  kourichat_config:
+    build: .
+    container_name: kourichat_config
+    volumes:
+      - ./data:/app/data  # 配置、数据持久化
+    ports:
+      - "8502:8502"        # run_config_web.py 默认启动 Web 配置端口
+    command: ["python", "run_config_web.py"]
+    restart: "no"
