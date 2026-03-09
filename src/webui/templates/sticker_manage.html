@@ -1,0 +1,177 @@
+{% extends "config_base.html" %}
+
+{% block title %}表情包管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2 class="mb-4">
+        <i class="bi bi-emoji-smile"></i> 表情包管理
+    </h2>
+
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">总表情数</h5>
+                    <h2 id="totalCount">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">情感分类</h5>
+                    <h2 id="emotionCount">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">最近收集</h5>
+                    <h2 id="recentCount">0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 表情包列表 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">表情包库</h5>
+        </div>
+        <div class="card-body">
+            <div id="stickerList"></div>
+        </div>
+    </div>
+
+    <!-- 收集日志 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">收集日志</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>用户</th>
+                            <th>情感</th>
+                            <th>描述</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 加载表情包列表
+function loadStickers() {
+    fetch('/sticker/list')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                displayStickers(data.stickers);
+            }
+        });
+}
+
+// 显示表情包
+function displayStickers(stickers) {
+    const container = document.getElementById('stickerList');
+    let totalCount = 0;
+    let html = '';
+
+    for (const [emotion, info] of Object.entries(stickers)) {
+        totalCount += info.count;
+        html += `
+            <div class="mb-4">
+                <h6>${emotion} (${info.count})</h6>
+                <div class="row">
+        `;
+
+        info.files.forEach(file => {
+            html += `
+                <div class="col-md-2 mb-3">
+                    <div class="card">
+                        <img src="/sticker/image/${emotion}/${file}" class="card-img-top" style="height: 150px; object-fit: cover;">
+                        <div class="card-body p-2">
+                            <button class="btn btn-sm btn-danger w-100" onclick="deleteSticker('${emotion}', '${file}')">删除</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html || '<p class="text-muted">暂无表情包</p>';
+    document.getElementById('totalCount').textContent = totalCount;
+    document.getElementById('emotionCount').textContent = Object.keys(stickers).length;
+}
+
+// 删除表情包
+function deleteSticker(emotion, filename) {
+    if (!confirm('确定要删除这个表情包吗？')) return;
+
+    fetch('/sticker/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({emotion, filename})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            loadStickers();
+        } else {
+            alert('删除失败: ' + data.error);
+        }
+    });
+}
+
+// 加载日志
+function loadLogs() {
+    fetch('/sticker/logs')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                displayLogs(data.logs);
+            }
+        });
+}
+
+// 显示日志
+function displayLogs(logs) {
+    const tbody = document.getElementById('logTable');
+    tbody.innerHTML = logs.map(log => `
+        <tr>
+            <td>${new Date(log.timestamp).toLocaleString()}</td>
+            <td>${log.user_id}</td>
+            <td><span class="badge bg-primary">${log.emotion}</span></td>
+            <td>${log.description}</td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" class="text-muted">暂无日志</td></tr>';
+
+    document.getElementById('recentCount').textContent = logs.length;
+}
+
+// 页面加载时执行
+document.addEventListener('DOMContentLoaded', function() {
+    loadStickers();
+    loadLogs();
+    setInterval(() => {
+        loadStickers();
+        loadLogs();
+    }, 30000); // 30秒刷新
+});
+</script>
+{% endblock %}
