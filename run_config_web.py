@@ -37,6 +37,7 @@ from datetime import timedelta
 from src.utils.console import print_status
 from src.avatar_manager import avatar_manager  # 导入角色设定管理器
 from src.webui.routes.avatar import avatar_bp
+from src.webui.routes.sticker import sticker_bp
 import ctypes
 if sys.platform.startswith('win'):
     import win32api
@@ -122,6 +123,7 @@ app.secret_key = secrets.token_hex(16)
 try:
     app.register_blueprint(avatar_manager)
     app.register_blueprint(avatar_bp)
+    app.register_blueprint(sticker_bp)
     logger.debug("成功注册蓝图组件")
 except Exception as e:
     logger.error(f"注册蓝图组件失败: {str(e)}")
