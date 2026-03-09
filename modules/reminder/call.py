@@ -1,10 +1,20 @@
 import logging
 import time
-import win32gui
-import pygame
-from wxauto import WeChat
-from wxauto.elements import ChatWnd
-from uiautomation import ControlFromHandle
+import sys
+
+# Windows 专用依赖（企业微信模式下不需要）
+if sys.platform.startswith('win'):
+    import win32gui
+    import pygame
+    from wxauto import WeChat
+    from wxauto.elements import ChatWnd
+    from uiautomation import ControlFromHandle
+else:
+    win32gui = None
+    pygame = None
+    WeChat = None
+    ChatWnd = None
+    ControlFromHandle = None
 
 logger = logging.getLogger('main')
 

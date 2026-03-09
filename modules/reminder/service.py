@@ -5,7 +5,12 @@ import os
 import sys
 from datetime import datetime
 from typing import Dict, List
-from wxauto import WeChat
+
+# Windows 专用依赖（企业微信模式下不需要）
+if sys.platform.startswith('win'):
+    from wxauto import WeChat
+else:
+    WeChat = None
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 from modules.reminder.call import Call
