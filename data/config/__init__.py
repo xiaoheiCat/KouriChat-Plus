@@ -532,7 +532,8 @@ class Config:
                     callback_aes_key=wecom_data.get('callback_aes_key', {}).get('value', ''),
                     port=int(wecom_data.get('port', {}).get('value', 8081)),
                     callback_path=wecom_data.get('callback_path', {}).get('value', '/wecom/callback'),
-                    enable_markdown=bool(wecom_data.get('enable_markdown', {}).get('value', False))
+                    enable_markdown=bool(wecom_data.get('enable_markdown', {}).get('value', False)),
+                    proxy_url=wecom_data.get('proxy_url', {}).get('value', '')
                 )
 
                 logger.info("配置加载完成")
