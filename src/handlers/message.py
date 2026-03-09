@@ -131,6 +131,10 @@ class MessageHandler:
         """注入消息发送回调，签名：fn(chat_id: str, text: str)"""
         self._send_fn = fn
 
+    def set_sticker_collector(self, collector):
+        """注入表情包收集器"""
+        self.sticker_collector = collector
+
     def switch_avatar_temporarily(self, avatar_path: str):
         """临时切换人设（不修改全局配置，仅用于群聊）"""
         try:
@@ -449,11 +453,16 @@ class MessageHandler:
             return self.deepseek.get_response(message, user_id, self.prompt_content)
 
     def handle_user_message(self, content: str, chat_id: str, sender_name: str,
-                            username: str, is_group: bool = False, is_image_recognition: bool = False):
+                            username: str, is_group: bool = False, is_image_recognition: bool = False,
+                            msg_type: str = 'text'):
         """统一的消息处理入口"""
         try:
             logger.info(f"收到消息 - 来自: {sender_name}" + (" (群聊)" if is_group else ""))
             logger.debug(f"消息内容: {content}")
+
+            # 处理图片消息
+            if msg_type == 'image':
+                return self._handle_image_message(content, chat_id, sender_name, username, is_group)
 
             # 处理调试命令
             if self.debug_handler.is_debug_command(content):
@@ -804,6 +813,38 @@ class MessageHandler:
         else:
             # 使用正常的消息发送方式
             self._send_message_with_dollar(reply, chat_id)
+
+    def _handle_image_message(self, image_path: str, chat_id: str, sender_name: str,
+                             username: str, is_group: bool):
+        """处理图片消息（表情包收集）"""
+        try:
+            # 获取最近对话上下文
+            context = ""
+            if hasattr(self, 'sticker_collector'):
+                # 分析是否应该收集
+                result = self.sticker_collector.should_collect(image_path, context)
+
+                if result and result.get('collect'):
+                    # 收集表情包
+                    success = self.sticker_collector.collect_sticker(
+                        image_path,
+                        result['emotion'],
+                        result['description'],
+                        chat_id
+                    )
+
+                    if success:
+                        reply = f"哇！这个表情包好可爱呀~ 我收藏啦！[{result['emotion']}]"
+                        reply = self._add_at_tag_if_needed(reply, sender_name, is_group)
+                        self._send_fn(chat_id, reply)
+                        logger.info(f"已收集表情包: {result['emotion']}")
+                else:
+                    logger.info("图片不适合作为表情包收藏")
+            else:
+                logger.warning("表情包收集器未初始化")
+
+        except Exception as e:
+            logger.error(f"处理图片消息失败: {e}")
 
     def _handle_text_message(self, content, chat_id, sender_name, username, is_group):
         """处理普通文本消息"""

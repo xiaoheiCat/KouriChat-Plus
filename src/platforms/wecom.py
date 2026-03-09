@@ -75,7 +75,7 @@ class WeCom:
     # ------------------------------------------------------------------ #
 
     def set_message_handler(self, handler):
-        """注册消息回调函数：handler(user_id: str, content: str)"""
+        """注册消息回调函数：handler(user_id: str, content: str, msg_type: str)"""
         self._message_handler = handler
 
     def start(self):
@@ -114,6 +114,18 @@ class WeCom:
             self.send_markdown(user_id, content)
         else:
             self.send_text(user_id, content)
+
+    def send_image(self, user_id: str, image_path: str):
+        """向企业微信用户发送图片（先上传临时素材拿 media_id，再发送）"""
+        try:
+            media_id = self._upload_media(image_path, 'image')
+            if media_id:
+                self._send_message(user_id, {
+                    'msgtype': 'image',
+                    'image': {'media_id': media_id},
+                })
+        except Exception as e:
+            logger.error(f"企业微信发送图片失败 path={image_path}: {e}")
 
     # ------------------------------------------------------------------ #
     #  Flask 路由
@@ -213,11 +225,26 @@ class WeCom:
         return response
 
     def _handle_media(self, user_id: str, media_id: str, media_type: str):
-        """下载媒体文件后调用 handler（目前仅日志，可扩展图片识别）"""
+        """下载媒体文件后调用 handler"""
         try:
             data = self._download_media(media_id)
-            logger.info(f"[企业微信] 已下载 {media_type} 媒体，大小 {len(data)} 字节，暂不处理")
-            # TODO: 对接 ImageRecognitionService 进行图片识别
+            logger.info(f"[企业微信] 已下载 {media_type} 媒体，大小 {len(data)} 字节")
+
+            if media_type == 'image' and self._message_handler:
+                # 保存图片到临时目录
+                temp_dir = os.path.join(os.getcwd(), 'data', 'images', 'temp')
+                os.makedirs(temp_dir, exist_ok=True)
+
+                temp_path = os.path.join(temp_dir, f"{media_id}_{int(time.time())}.jpg")
+                with open(temp_path, 'wb') as f:
+                    f.write(data)
+
+                # 调用消息处理器，传递图片路径
+                threading.Thread(
+                    target=self._message_handler,
+                    args=(user_id, temp_path, 'image'),
+                    daemon=True
+                ).start()
         except Exception as e:
             logger.error(f"下载媒体失败: {e}")
 
@@ -269,6 +296,21 @@ class WeCom:
         url = f'https://qyapi.weixin.qq.com/cgi-bin/media/get?access_token={token}&media_id={media_id}'
         resp = requests.get(url, timeout=30)
         return resp.content
+
+    def _upload_media(self, file_path: str, media_type: str = 'image') -> str:
+        """上传本地文件为企业微信临时素材，返回 media_id"""
+        token = self._get_access_token()
+        url = f'https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token={token}&type={media_type}'
+        filename = os.path.basename(file_path)
+        with open(file_path, 'rb') as f:
+            resp = requests.post(url, files={'media': (filename, f)}, timeout=30)
+        result = resp.json()
+        if result.get('errcode', 0) != 0:
+            logger.error(f"上传媒体素材失败: {result}")
+            return ''
+        media_id = result.get('media_id', '')
+        logger.debug(f"媒体素材上传成功 media_id={media_id}")
+        return media_id
 
     # ------------------------------------------------------------------ #
     #  签名与解密

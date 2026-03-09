@@ -98,13 +98,13 @@ class PrivateChatBot:
         self.current_avatar = os.path.basename(default_avatar_path)
         logger.info(f"私聊机器人使用默认人设: {self.current_avatar}")
 
-    def handle_private_message(self, user_id: str, content: str):
+    def handle_private_message(self, user_id: str, content: str, msg_type: str = 'text'):
         """处理私聊消息（企业微信回调入口）"""
         try:
             # 重置倒计时
             self.auto_sender.start_countdown()
 
-            logger.info(f"[私聊] 收到消息 - 来自: {user_id}")
+            logger.info(f"[私聊] 收到消息 - 来自: {user_id}, 类型: {msg_type}")
             logger.debug(f"[私聊] 消息内容: {content}")
 
             # 处理消息
@@ -115,7 +115,8 @@ class PrivateChatBot:
                     sender_name=user_id,
                     username=user_id,
                     is_group=False,
-                    is_image_recognition=False
+                    is_image_recognition=False,
+                    msg_type=msg_type
                 )
 
         except Exception as e:
@@ -231,7 +232,7 @@ class GroupChatBot:
 def private_message_processor():
     """私聊消息处理线程"""
     logger.info("私聊消息处理线程启动")
-    
+
     while not stop_event.is_set():
         try:
             # 从队列获取私聊消息
@@ -239,10 +240,10 @@ def private_message_processor():
             if msg_data is None:  # 退出信号
                 break
 
-            user_id, content = msg_data
-            private_chat_bot.handle_private_message(user_id, content)
+            user_id, content, msg_type = msg_data
+            private_chat_bot.handle_private_message(user_id, content, msg_type)
             private_message_queue.task_done()
-            
+
         except queue.Empty:
             continue
         except Exception as e:
@@ -279,6 +280,7 @@ image_recognition_service = None
 auto_sender = None
 private_chat_bot = None
 group_chat_bot = None
+sticker_collector = None
 ROBOT_WX_NAME = ""
 processed_messages = set()
 last_processed_content = {}
@@ -286,7 +288,7 @@ last_processed_content = {}
 def initialize_services():
     """初始化服务实例"""
     global prompt_content, emoji_handler, image_handler, memory_service, content_generator
-    global message_handler, image_recognition_service, auto_sender, private_chat_bot, group_chat_bot, ROBOT_WX_NAME
+    global message_handler, image_recognition_service, auto_sender, private_chat_bot, group_chat_bot, sticker_collector, ROBOT_WX_NAME
 
     # 尝试获取热更新模块状态信息以确认其状态
     try:
@@ -349,6 +351,23 @@ def initialize_services():
         model=config.media.image_recognition.model
     )
 
+    # 创建表情包收集器
+    from src.services.sticker_collector import StickerCollector
+    avatar_name = os.path.basename(config.behavior.context.avatar_dir)
+    sticker_collector = StickerCollector(
+        root_dir=root_dir,
+        llm_service=LLMService(
+            api_key=config.llm.api_key,
+            base_url=config.llm.base_url,
+            model=config.llm.model,
+            max_token=config.llm.max_tokens,
+            temperature=0.3,
+            max_groups=1
+        ),
+        avatar_name=avatar_name
+    )
+    logger.info(f"表情包收集器已初始化，角色: {avatar_name}")
+
     # 企业微信模式：使用 agent_id 作为机器人名称标识
     ROBOT_WX_NAME = config.wecom.agent_id
     logger.info(f"企业微信模式，机器人标识: {ROBOT_WX_NAME}")
@@ -376,6 +395,10 @@ def initialize_services():
     # 注入企业微信发送回调
     message_handler.set_send_fn(lambda chat_id, text: wecom.reply(chat_id, text))
 
+    # 注入表情包收集器
+    message_handler.set_sticker_collector(sticker_collector)
+    logger.info("表情包收集器已注入到消息处理器")
+
     # 创建并行聊天机器人实例
     private_chat_bot = PrivateChatBot(message_handler, image_recognition_service, auto_sender, emoji_handler)
     group_chat_bot = GroupChatBot(MessageHandler, config, auto_sender, emoji_handler, image_recognition_service)
@@ -383,10 +406,10 @@ def initialize_services():
     # 启动主动消息倒计时
     auto_sender.start_countdown()
 
-def wecom_message_handler(user_id: str, content: str):
+def wecom_message_handler(user_id: str, content: str, msg_type: str = 'text'):
     """企业微信消息回调入口，将消息分发到私聊处理队列"""
-    logger.debug(f"[WeCom] 收到消息 from={user_id} len={len(content)}")
-    private_message_queue.put((user_id, content))
+    logger.debug(f"[WeCom] 收到消息 from={user_id} type={msg_type}")
+    private_message_queue.put((user_id, content, msg_type))
 
 def initialize_wecom():
     """初始化企业微信平台"""
