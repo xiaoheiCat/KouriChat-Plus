@@ -220,6 +220,7 @@ def parse_config_groups() -> Dict[str, Dict[str, Any]]:
             "消息配置": {},
             "人设配置": {},
             "网络搜索配置": {},
+            "企业微信配置": {},
             "世界书":{}
         }
 
@@ -424,6 +425,55 @@ def parse_config_groups() -> Dict[str, Dict[str, Any]]:
             }
         )
 
+        # 企业微信配置
+        config_groups["企业微信配置"].update(
+            {
+                "WECOM_CORP_ID": {
+                    "value": config.wecom.corp_id,
+                    "type": "string",
+                    "description": "企业微信 CorpId（在「我的企业」底部查看）"
+                },
+                "WECOM_CORP_SECRET": {
+                    "value": config.wecom.corp_secret,
+                    "type": "string",
+                    "description": "自建应用的 Secret",
+                    "is_secret": True
+                },
+                "WECOM_AGENT_ID": {
+                    "value": config.wecom.agent_id,
+                    "type": "string",
+                    "description": "自建应用的 AgentId"
+                },
+                "WECOM_CALLBACK_TOKEN": {
+                    "value": config.wecom.callback_token,
+                    "type": "string",
+                    "description": "接收消息配置中自定义的 Token",
+                    "is_secret": True
+                },
+                "WECOM_CALLBACK_AES_KEY": {
+                    "value": config.wecom.callback_aes_key,
+                    "type": "string",
+                    "description": "接收消息配置中的 EncodingAESKey（43字符）",
+                    "is_secret": True
+                },
+                "WECOM_PORT": {
+                    "value": config.wecom.port,
+                    "type": "number",
+                    "description": "Webhook 监听端口（默认 8081）"
+                },
+                "WECOM_CALLBACK_PATH": {
+                    "value": config.wecom.callback_path,
+                    "type": "string",
+                    "description": "Webhook 回调路径"
+                },
+                "WECOM_ENABLE_MARKDOWN": {
+                    "value": config.wecom.enable_markdown,
+                    "type": "boolean",
+                    "description": "是否发送 Markdown 消息（仅企业微信内渲染，个人微信不支持）"
+                }
+            }
+        )
+
         # 世界书配置
         worldview = ""
         try:
@@ -570,7 +620,8 @@ def save_config():
                        'INTENT_API_KEY', 'INTENT_BASE_URL', 'INTENT_MODEL', 'INTENT_TEMPERATURE',
                        'IMAGE_MODEL', 'TEMP_IMAGE_DIR', 'AUTO_MESSAGE', 'MIN_COUNTDOWN_HOURS', 'MAX_COUNTDOWN_HOURS',
                        'QUIET_TIME_START', 'QUIET_TIME_END', 'TTS_API_URL', 'VOICE_DIR', 'MAX_GROUPS', 'AVATAR_DIR',
-                       'QUEUE_TIMEOUT', 'NETWORK_SEARCH_ENABLED', 'WEBLENS_ENABLED', 'NETWORK_SEARCH_API_KEY', 'NETWORK_SEARCH_BASE_URL', 'TTS_API_KEY', 'TTS_MODEL_ID']:
+                       'QUEUE_TIMEOUT', 'NETWORK_SEARCH_ENABLED', 'WEBLENS_ENABLED', 'NETWORK_SEARCH_API_KEY', 'NETWORK_SEARCH_BASE_URL', 'TTS_API_KEY', 'TTS_MODEL_ID',
+                       'WECOM_CORP_ID', 'WECOM_CORP_SECRET', 'WECOM_AGENT_ID', 'WECOM_CALLBACK_TOKEN', 'WECOM_CALLBACK_AES_KEY', 'WECOM_PORT', 'WECOM_CALLBACK_PATH', 'WECOM_ENABLE_MARKDOWN']:
                 update_config_value(current_config, key, value)
             elif key == 'WORLDVIEW':
                 worldview_file_path = os.path.join(ROOT_DIR, 'src/base/worldview.md')
@@ -646,6 +697,14 @@ def update_config_value(config_data, key, value):
             'QUEUE_TIMEOUT': ['categories', 'behavior_settings', 'settings', 'message_queue', 'timeout', 'value'],
             'MAX_GROUPS': ['categories', 'behavior_settings', 'settings', 'context', 'max_groups', 'value'],
             'AVATAR_DIR': ['categories', 'behavior_settings', 'settings', 'context', 'avatar_dir', 'value'],
+            'WECOM_CORP_ID': ['categories', 'wecom_settings', 'settings', 'corp_id', 'value'],
+            'WECOM_CORP_SECRET': ['categories', 'wecom_settings', 'settings', 'corp_secret', 'value'],
+            'WECOM_AGENT_ID': ['categories', 'wecom_settings', 'settings', 'agent_id', 'value'],
+            'WECOM_CALLBACK_TOKEN': ['categories', 'wecom_settings', 'settings', 'callback_token', 'value'],
+            'WECOM_CALLBACK_AES_KEY': ['categories', 'wecom_settings', 'settings', 'callback_aes_key', 'value'],
+            'WECOM_PORT': ['categories', 'wecom_settings', 'settings', 'port', 'value'],
+            'WECOM_CALLBACK_PATH': ['categories', 'wecom_settings', 'settings', 'callback_path', 'value'],
+            'WECOM_ENABLE_MARKDOWN': ['categories', 'wecom_settings', 'settings', 'enable_markdown', 'value'],
         }
 
         if key in mapping:
@@ -736,6 +795,38 @@ def update_config_value(config_data, key, value):
                     current['categories']['intent_recognition_settings']['settings']['temperature'] = {'value': float(value), 'type': 'number', 'min': 0.0, 'max': 1.0}
                 return
 
+            # 特殊处理企业微信相关配置
+            elif key in ['WECOM_CORP_ID', 'WECOM_CORP_SECRET', 'WECOM_AGENT_ID',
+                         'WECOM_CALLBACK_TOKEN', 'WECOM_CALLBACK_AES_KEY', 'WECOM_PORT',
+                         'WECOM_CALLBACK_PATH', 'WECOM_ENABLE_MARKDOWN']:
+                # 确保wecom_settings结构存在
+                if 'categories' not in current:
+                    current['categories'] = {}
+                if 'wecom_settings' not in current['categories']:
+                    current['categories']['wecom_settings'] = {'title': '企业微信配置', 'settings': {}}
+                if 'settings' not in current['categories']['wecom_settings']:
+                    current['categories']['wecom_settings']['settings'] = {}
+
+                # 更新对应的配置项
+                if key == 'WECOM_CORP_ID':
+                    current['categories']['wecom_settings']['settings']['corp_id'] = {'value': value, 'type': 'string'}
+                elif key == 'WECOM_CORP_SECRET':
+                    current['categories']['wecom_settings']['settings']['corp_secret'] = {'value': value, 'type': 'string', 'is_secret': True}
+                elif key == 'WECOM_AGENT_ID':
+                    current['categories']['wecom_settings']['settings']['agent_id'] = {'value': value, 'type': 'string'}
+                elif key == 'WECOM_CALLBACK_TOKEN':
+                    current['categories']['wecom_settings']['settings']['callback_token'] = {'value': value, 'type': 'string', 'is_secret': True}
+                elif key == 'WECOM_CALLBACK_AES_KEY':
+                    current['categories']['wecom_settings']['settings']['callback_aes_key'] = {'value': value, 'type': 'string', 'is_secret': True}
+                elif key == 'WECOM_PORT':
+                    current['categories']['wecom_settings']['settings']['port'] = {'value': int(value) if isinstance(value, str) else value, 'type': 'number'}
+                elif key == 'WECOM_CALLBACK_PATH':
+                    current['categories']['wecom_settings']['settings']['callback_path'] = {'value': value, 'type': 'string'}
+                elif key == 'WECOM_ENABLE_MARKDOWN':
+                    current['categories']['wecom_settings']['settings']['enable_markdown'] = {'value': value if isinstance(value, bool) else (value.lower() == 'true' if isinstance(value, str) else bool(value)), 'type': 'boolean'}
+                return
+
+
             # 遍历路径直到倒数第二个元素
             for part in path[:-1]:
                 if part not in current:
@@ -745,17 +836,17 @@ def update_config_value(config_data, key, value):
             # 设置最终值，确保类型正确
             if isinstance(value, str) and key in ['MAX_TOKEN', 'TEMPERATURE', 'VISION_TEMPERATURE',
                                                'MIN_COUNTDOWN_HOURS', 'MAX_COUNTDOWN_HOURS', 'MAX_GROUPS',
-                                               'QUEUE_TIMEOUT']:
+                                               'QUEUE_TIMEOUT', 'WECOM_PORT']:
                 try:
                     # 尝试转换为数字
                     value = float(value)
                     # 对于整数类型配置，转为整数
-                    if key in ['MAX_TOKEN', 'MAX_GROUPS', 'QUEUE_TIMEOUT']:
+                    if key in ['MAX_TOKEN', 'MAX_GROUPS', 'QUEUE_TIMEOUT', 'WECOM_PORT']:
                         value = int(value)
                 except ValueError:
                     pass
             # 处理布尔类型
-            elif key in ['NETWORK_SEARCH_ENABLED', 'WEBLENS_ENABLED']:
+            elif key in ['NETWORK_SEARCH_ENABLED', 'WEBLENS_ENABLED', 'WECOM_ENABLE_MARKDOWN']:
                 # 将字符串 'true'/'false' 转换为布尔值
                 if isinstance(value, str):
                     value = value.lower() == 'true'
