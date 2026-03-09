@@ -20,13 +20,8 @@ def get_root_dir():
 @sticker_bp.route('/manage')
 def manage():
     """表情包管理页面"""
-    # 导入配置解析函数
-    import sys
-    import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-    from run_config_web import parse_config_groups
-
-    config_groups = parse_config_groups()
+    # 传递空的 config_groups 以满足模板要求
+    config_groups = {}
     return render_template('sticker_manage.html', config_groups=config_groups)
 
 
