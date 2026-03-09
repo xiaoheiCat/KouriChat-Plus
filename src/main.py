@@ -17,7 +17,6 @@ except Exception as e:
 
 # 导入其余模块
 from data.config import config, DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL, MAX_TOKEN, TEMPERATURE, MAX_GROUPS
-from wxauto import WeChat
 import re
 from src.handlers.emoji import EmojiHandler
 from src.handlers.image import ImageHandler
@@ -30,6 +29,7 @@ from src.utils.logger import LoggerConfig
 from colorama import init, Style
 from src.AutoTasker.autoTasker import AutoTasker
 from src.handlers.autosend import AutoSendHandler
+from src.platforms.wecom import WeCom
 import queue
 from collections import defaultdict
 
@@ -55,6 +55,7 @@ init()
 # 全局变量
 logger = None
 listen_list = []
+wecom: WeCom = None  # 企业微信平台实例
 
 def initialize_logging():
     """初始化日志系统"""
@@ -88,57 +89,33 @@ class PrivateChatBot:
         self.image_recognition_service = image_recognition_service
         self.auto_sender = auto_sender
         self.emoji_handler = emoji_handler
-        self.wx = WeChat()
-        self.robot_name = self.wx.A_MyIcon.Name
-        logger.info(f"私聊机器人初始化完成 - 机器人名称: {self.robot_name}")
-        
+        self.robot_name = config.wecom.agent_id  # 企业微信模式下用 agent_id 作为机器人标识
+        logger.info(f"私聊机器人初始化完成 - AgentId: {self.robot_name}")
+
         # 私聊始终使用默认人设
-        from data.config import config
-        default_avatar_path = config.behavior.context.avatar_dir
+        from data.config import config as cfg
+        default_avatar_path = cfg.behavior.context.avatar_dir
         self.current_avatar = os.path.basename(default_avatar_path)
         logger.info(f"私聊机器人使用默认人设: {self.current_avatar}")
 
-    def handle_private_message(self, msg, chat_name):
-        """处理私聊消息"""
+    def handle_private_message(self, user_id: str, content: str):
+        """处理私聊消息（企业微信回调入口）"""
         try:
-            username = msg.sender
-            content = getattr(msg, 'content', None) or getattr(msg, 'text', None)
-
             # 重置倒计时
             self.auto_sender.start_countdown()
 
-            logger.info(f"[私聊] 收到消息 - 来自: {username}")
+            logger.info(f"[私聊] 收到消息 - 来自: {user_id}")
             logger.debug(f"[私聊] 消息内容: {content}")
-
-            img_path = None
-            is_emoji = False
-            is_image_recognition = False
-
-            if content and content.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
-                img_path = content
-                is_emoji = False
-                content = None
-
-            # 检查动画表情
-            if content and "[动画表情]" in content:
-                img_path = self.emoji_handler.capture_and_save_screenshot(username)
-                is_emoji = True
-                content = None
-
-            if img_path:
-                recognized_text = self.image_recognition_service.recognize_image(img_path, is_emoji)
-                content = recognized_text if content is None else f"{content} {recognized_text}"
-                is_image_recognition = True
 
             # 处理消息
             if content:
                 self.message_handler.handle_user_message(
                     content=content,
-                    chat_id=chat_name,
-                    sender_name=username,
-                    username=username,
+                    chat_id=user_id,
+                    sender_name=user_id,
+                    username=user_id,
                     is_group=False,
-                    is_image_recognition=is_image_recognition
+                    is_image_recognition=False
                 )
 
         except Exception as e:
@@ -154,9 +131,8 @@ class GroupChatBot:
         self.auto_sender = auto_sender
         self.emoji_handler = emoji_handler
         self.image_recognition_service = image_recognition_service
-        self.wx = WeChat()
-        self.robot_name = self.wx.A_MyIcon.Name
-        logger.info(f"群聊机器人初始化完成 - 机器人名称: {self.robot_name}")
+        self.robot_name = config.wecom.agent_id  # 企业微信模式下用 agent_id 作为机器人标识
+        logger.info(f"群聊机器人初始化完成 - AgentId: {self.robot_name}")
 
     def get_group_handler(self, group_name, group_config=None):
         """获取或创建群聊专用的消息处理器"""
@@ -262,9 +238,9 @@ def private_message_processor():
             msg_data = private_message_queue.get(timeout=1)
             if msg_data is None:  # 退出信号
                 break
-                
-            msg, chat_name = msg_data
-            private_chat_bot.handle_private_message(msg, chat_name)
+
+            user_id, content = msg_data
+            private_chat_bot.handle_private_message(user_id, content)
             private_message_queue.task_done()
             
         except queue.Empty:
@@ -373,14 +349,9 @@ def initialize_services():
         model=config.media.image_recognition.model
     )
 
-    # 获取机器人名称
-    try:
-        wx = WeChat()
-        ROBOT_WX_NAME = wx.A_MyIcon.Name  # 使用Name属性而非方法
-        logger.info(f"获取到机器人名称: {ROBOT_WX_NAME}")
-    except Exception as e:
-        logger.warning(f"获取机器人名称失败: {str(e)}")
-        ROBOT_WX_NAME = ""
+    # 企业微信模式：使用 agent_id 作为机器人名称标识
+    ROBOT_WX_NAME = config.wecom.agent_id
+    logger.info(f"企业微信模式，机器人标识: {ROBOT_WX_NAME}")
 
     # 创建消息处理器
     message_handler = MessageHandler(
@@ -402,179 +373,44 @@ def initialize_services():
     # 创建主动消息处理器
     auto_sender = AutoSendHandler(message_handler, config, listen_list)
 
-    # 创建并行聊天机器人实例 
+    # 注入企业微信发送回调
+    message_handler.set_send_fn(lambda chat_id, text: wecom.reply(chat_id, text))
+
+    # 创建并行聊天机器人实例
     private_chat_bot = PrivateChatBot(message_handler, image_recognition_service, auto_sender, emoji_handler)
     group_chat_bot = GroupChatBot(MessageHandler, config, auto_sender, emoji_handler, image_recognition_service)
 
     # 启动主动消息倒计时
     auto_sender.start_countdown()
 
-def message_dispatcher():
-    """消息分发器 - 将消息分发到对应的处理队列"""
-    global ROBOT_WX_NAME, logger, wait, processed_messages, last_processed_content
+def wecom_message_handler(user_id: str, content: str):
+    """企业微信消息回调入口，将消息分发到私聊处理队列"""
+    logger.debug(f"[WeCom] 收到消息 from={user_id} len={len(content)}")
+    private_message_queue.put((user_id, content))
 
-    wx = None
-    last_window_check = 0
-    check_interval = 600
+def initialize_wecom():
+    """初始化企业微信平台"""
+    global wecom
+    cfg = config.wecom
+    if not cfg.corp_id or not cfg.corp_secret or not cfg.agent_id:
+        raise ValueError("企业微信配置不完整，请在配置文件中填写 corp_id / corp_secret / agent_id")
+    if not cfg.callback_token or not cfg.callback_aes_key:
+        raise ValueError("企业微信回调配置不完整，请填写 callback_token / callback_aes_key")
 
-    logger.info("消息分发器启动")
-
-    while not stop_event.is_set():
-        try:
-            current_time = time.time()
-
-            if wx is None or (current_time - last_window_check > check_interval):
-                wx = WeChat()
-                if not wx.GetSessionList():
-                    time.sleep(5)
-                    continue
-                last_window_check = current_time
-
-            msgs = wx.GetListenMessage()
-            if not msgs:
-                time.sleep(wait)
-                continue
-
-            for chat in msgs:
-                who = chat.who
-                if not who:
-                    continue
-
-                one_msgs = msgs.get(chat)
-                if not one_msgs:
-                    continue
-
-                for msg in one_msgs:
-                    try:
-                        msg_id = getattr(msg, 'id', None)
-                        msgtype = msg.type
-                        content = msg.content
-                        
-                        if msg_id and msg_id in processed_messages:
-                            logger.debug(f"跳过已处理的消息ID: {msg_id}")
-                            continue
-                        if not content:
-                            continue
-                        if msgtype != 'friend':
-                            logger.debug(f"非好友消息，忽略! 消息类型: {msgtype}")
-                            continue
-                        
-                        # 检查消息来源是否在监听列表中
-                        if who not in listen_list:
-                            logger.debug(f"消息来源不在监听列表中，忽略: {who}")
-                            continue
-                        
-                        if msg_id:
-                            processed_messages.add(msg_id)
-                        last_processed_content[who] = content            
-                            
-                        # 接收窗口名跟发送人一样，代表是私聊，否则是群聊
-                        if who == msg.sender:
-                            # 私聊消息 - 放入私聊队列
-                            logger.debug(f"[分发] 私聊消息 -> 私聊队列: {who}")
-                            private_message_queue.put((msg, msg.sender))
-                        else:
-                            # 群聊消息 - 检查触发条件后放入群聊队列
-                            trigger_reason = ""
-                            should_respond = False
-                            group_config = None
-                            
-                            # 导入配置
-                            from data.config import config
-                            
-                            # 首先检查群聊配置
-                            if config and hasattr(config, 'user') and config.user.group_chat_config:
-                                for gc_config in config.user.group_chat_config:
-                                    if gc_config.group_name == who:  # who 是群聊名称
-                                        group_config = gc_config
-                                        # 检查群聊配置中的触发词
-                                        for trigger in gc_config.triggers:
-                                            if trigger and trigger in msg.content:
-                                                trigger_reason = f"群聊配置触发词({trigger})"
-                                                should_respond = True
-                                                break
-                                        break
-                            
-                            # 如果没有找到群聊配置或没有触发，使用默认逻辑
-                            if not should_respond:
-                                # 检查@机器人名字
-                                at_trigger_enabled = True  # 默认启用
-                                if group_config is not None:
-                                    at_trigger_enabled = group_config.enable_at_trigger
-                                
-                                if at_trigger_enabled and ROBOT_WX_NAME and bool(re.search(f'@{ROBOT_WX_NAME}\u2005', msg.content)):
-                                    trigger_reason = f"被@了机器人名字({ROBOT_WX_NAME})"
-                                    should_respond = True
-                                # 检查群聊的人设名字（获取当前群聊的专用处理器）
-                                elif group_config:
-                                    # 临时获取群聊处理器来检查人设名字
-                                    temp_handler = group_chat_bot.get_group_handler(who, group_config)
-                                    if hasattr(temp_handler, 'avatar_real_names'):
-                                        for name in temp_handler.avatar_real_names:
-                                            if name and name in msg.content:
-                                                trigger_reason = f"提到了群聊人设名字({name})"
-                                                should_respond = True
-                                                break
-                            
-                            if should_respond:
-                                logger.debug(f"[分发] 群聊消息触发响应 - 原因: {trigger_reason} -> 群聊队列: {who}")
-                                group_message_queue.put((msg, who, group_config))
-                            else:
-                                logger.debug(f"群聊消息未触发响应 - 群聊:{who}, 内容: {content}")
-                                
-                    except Exception as e:
-                        logger.debug(f"分发单条消息失败: {str(e)}")
-                        continue
-
-        except Exception as e:
-            logger.debug(f"消息分发出错: {str(e)}")
-            wx = None
-        time.sleep(wait)
-
-def initialize_wx_listener():
-    """
-    初始化微信监听，包含重试机制
-    """
-    # 使用全局变量
-    global listen_list, logger
-
-    max_retries = 3
-    retry_delay = 2  # 秒
-
-    for attempt in range(max_retries):
-        try:
-            wx = WeChat()
-            if not wx.GetSessionList():
-                logger.error("未检测到微信会话列表，请确保微信已登录")
-                time.sleep(retry_delay)
-                continue
-
-            # 循环添加监听对象，设置保存图片和语音消息
-            for chat_name in listen_list:
-                try:
-                    # 先检查会话是否存在
-                    if not wx.ChatWith(chat_name):
-                        logger.error(f"找不到会话: {chat_name}")
-                        continue
-
-                    # 尝试添加监听，设置savepic=True, savevoice=True
-                    wx.AddListenChat(who=chat_name, savepic=True, savevoice=True)
-                    logger.info(f"成功添加监听: {chat_name}")
-                    time.sleep(0.5)  # 添加短暂延迟，避免操作过快
-                except Exception as e:
-                    logger.error(f"添加监听失败 {chat_name}: {str(e)}")
-                    continue
-
-            return wx
-
-        except Exception as e:
-            logger.error(f"初始化微信失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
-            if attempt < max_retries - 1:
-                time.sleep(retry_delay)
-            else:
-                raise Exception("微信初始化失败，请检查微信是否正常运行")
-
-    return None
+    wecom = WeCom(
+        corp_id=cfg.corp_id,
+        corp_secret=cfg.corp_secret,
+        agent_id=cfg.agent_id,
+        callback_token=cfg.callback_token,
+        callback_aes_key=cfg.callback_aes_key,
+        port=cfg.port,
+        callback_path=cfg.callback_path,
+        enable_markdown=cfg.enable_markdown,
+    )
+    wecom.set_message_handler(wecom_message_handler)
+    wecom.start()
+    logger.info(f"企业微信平台初始化完成，Webhook 端口: {cfg.port}")
+    return wecom
 
 def initialize_auto_tasks(message_handler):
     """初始化自动任务系统"""
@@ -657,7 +493,6 @@ def switch_avatar(new_avatar_name):
 
 def main():
     # 初始化变量
-    dispatcher_thread = None
     private_thread = None
     group_thread = None
 
@@ -668,19 +503,10 @@ def main():
         # 初始化服务实例
         initialize_services()
 
-        # 设置wxauto日志路径
-        automation_log_dir = os.path.join(root_dir, "logs", "automation")
-        if not os.path.exists(automation_log_dir):
-            os.makedirs(automation_log_dir)
-        os.environ["WXAUTO_LOG_PATH"] = os.path.join(automation_log_dir, "AutomationLog.txt")
-
-        # 初始化微信监听
-        print_status("初始化微信监听...", "info", "BOT")
-        wx = initialize_wx_listener()
-        if not wx:
-            print_status("微信初始化失败，请确保微信已登录并保持在前台运行!", "error", "CROSS")
-            return
-        print_status("微信监听初始化完成", "success", "CHECK")
+        # 初始化企业微信平台
+        print_status("初始化企业微信平台...", "info", "BOT")
+        initialize_wecom()
+        print_status("企业微信 Webhook 服务已启动", "success", "CHECK")
 
         # 验证记忆目录
         print_status("验证角色记忆存储路径...", "info", "FILE")
@@ -709,26 +535,20 @@ def main():
             print_status(f"创建人设提示文件", "warning", "WARNING")
         # 启动并行消息处理系统
         print_status("启动并行消息处理系统...", "info", "ANTENNA")
-        
-        # 启动消息分发线程
-        dispatcher_thread = threading.Thread(target=message_dispatcher, name="MessageDispatcher")
-        dispatcher_thread.daemon = True
-        
+
         # 启动私聊处理线程
         private_thread = threading.Thread(target=private_message_processor, name="PrivateProcessor")
         private_thread.daemon = True
-        
+
         # 启动群聊处理线程
         group_thread = threading.Thread(target=group_message_processor, name="GroupProcessor")
         group_thread.daemon = True
-        
+
         # 启动所有线程
-        dispatcher_thread.start()
         private_thread.start()
         group_thread.start()
-        
+
         print_status("并行消息处理系统已启动", "success", "CHECK")
-        print_status("  ├─ 消息分发器线程", "info", "ANTENNA")
         print_status("  ├─ 私聊处理器线程", "info", "USER")
         print_status("  └─ 群聊处理器线程", "info", "USERS")
 
@@ -749,22 +569,19 @@ def main():
         # 主循环 - 监控并行处理线程状态
         while True:
             time.sleep(1)
-            
-            # 检查关键线程状态
+
             threads_status = [
-                ("消息分发器", dispatcher_thread),
                 ("私聊处理器", private_thread),
                 ("群聊处理器", group_thread)
             ]
-            
+
             dead_threads = []
             for thread_name, thread in threads_status:
                 if not thread.is_alive():
                     dead_threads.append(thread_name)
-            
+
             if dead_threads:
                 print_status(f"检测到线程异常: {', '.join(dead_threads)}", "warning", "WARNING")
-                # 这里可以添加重启逻辑，暂时先记录
                 time.sleep(5)
 
     except Exception as e:
@@ -787,7 +604,6 @@ def main():
 
         # 等待所有处理线程结束
         threads_to_wait = [
-            ("消息分发器", dispatcher_thread),
             ("私聊处理器", private_thread),
             ("群聊处理器", group_thread)
         ]

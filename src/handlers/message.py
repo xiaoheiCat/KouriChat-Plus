@@ -11,7 +11,7 @@ import threading
 import time
 import re
 from datetime import datetime
-from wxauto import WeChat
+# wxauto 已移除，改用企业微信 API 发送消息
 from src.services.database import Session, ChatMessage
 import random
 import os
@@ -63,8 +63,9 @@ class MessageHandler:
         self.queue_lock = threading.Lock()
         self.chat_contexts = {}
 
-        # 微信实例
-        self.wx = WeChat()
+        # 消息发送回调（由外部注入，签名：fn(chat_id: str, text: str)）
+        # 通过 set_send_fn() 设置，默认为空操作
+        self._send_fn = lambda chat_id, text: logger.warning(f"未设置发送回调，消息丢弃: {text[:30]}")
 
         # 添加 handlers
         self.image_handler = image_handler
@@ -125,6 +126,10 @@ class MessageHandler:
         # 初始化网络搜索服务
         self.network_search_service = NetworkSearchService(self.deepseek)
         logger.info("网络搜索服务已初始化")
+
+    def set_send_fn(self, fn):
+        """注入消息发送回调，签名：fn(chat_id: str, text: str)"""
+        self._send_fn = fn
 
     def switch_avatar_temporarily(self, avatar_path: str):
         """临时切换人设（不修改全局配置，仅用于群聊）"""
@@ -708,16 +713,15 @@ class MessageHandler:
                     clean_part = clean_part.replace(f'[{tag}]', '')
 
                 if clean_part.strip():
-                    self.wx.SendMsg(msg=clean_part.strip(), who=chat_id)
+                    self._send_fn(chat_id, clean_part.strip())
                     logger.debug(f"发送消息: {clean_part[:20]}...")
 
-                # 发送该部分包含的表情
+                # 发送该部分包含的表情（企业微信暂不支持本地文件发送，仅记录日志）
                 for emotion_type in emotion_tags:
                     try:
                         emoji_path = self.emoji_handler.get_emoji_for_emotion(emotion_type)
                         if emoji_path:
-                            self.wx.SendFiles(filepath=emoji_path, who=chat_id)
-                            logger.debug(f"已发送表情: {emotion_type}")
+                            logger.debug(f"表情文件已忽略（企业微信模式）: {emotion_type}")
                             time.sleep(random.randint(1, 3))
                     except Exception as e:
                         logger.error(f"发送表情失败 - {emotion_type}: {str(e)}")
@@ -734,16 +738,15 @@ class MessageHandler:
                 clean_reply = clean_reply.replace(f'[{tag}]', '')
 
             if clean_reply.strip():
-                self.wx.SendMsg(msg=clean_reply.strip(), who=chat_id)
+                self._send_fn(chat_id, clean_reply.strip())
                 logger.debug(f"发送消息: {clean_reply[:20]}...")
 
-            # 发送表情
+            # 发送表情（企业微信暂不支持本地文件发送，仅记录日志）
             for emotion_type in emotion_tags:
                 try:
                     emoji_path = self.emoji_handler.get_emoji_for_emotion(emotion_type)
                     if emoji_path:
-                        self.wx.SendFiles(filepath=emoji_path, who=chat_id)
-                        logger.debug(f"已发送表情: {emotion_type}")
+                        logger.debug(f"表情文件已忽略（企业微信模式）: {emotion_type}")
                         time.sleep(random.randint(1, 3))
                 except Exception as e:
                     logger.error(f"发送表情失败 - {emotion_type}: {str(e)}")
@@ -776,8 +779,7 @@ class MessageHandler:
                 clean_text = clean_text.replace('＄', '')  # 全角$符号
                 clean_text = clean_text.replace(r'\n', '\r\n\r\n')
                 # logger.info(clean_text)
-                self.wx.SendMsg(msg=clean_text, who=chat_id)
-                
+                self._send_fn(chat_id, clean_text)
                 # logger.info(f"已发送经过处理的文件内容: {file_content}")
 
         except Exception as e:

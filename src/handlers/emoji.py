@@ -7,14 +7,18 @@
 """
 
 import os
+import sys
 import random
 import logging
 from typing import Optional
 from datetime import datetime
-import pyautogui
 import time
-from wxauto import WeChat
 from data.config import config
+
+# Windows 专用依赖（企业微信模式下不需要）
+if sys.platform.startswith('win'):
+    import pyautogui
+    from wxauto import WeChat
 
 logger = logging.getLogger('main')
 
@@ -97,6 +101,9 @@ class EmojiHandler:
             )
 
             try:
+                if not sys.platform.startswith('win'):
+                    logger.warning("capture_and_save_screenshot 仅在 Windows 下可用（企业微信模式无需截图）")
+                    return None
                 # 激活并定位微信聊天窗口
                 wx_chat = WeChat()
                 wx_chat.ChatWith(who)

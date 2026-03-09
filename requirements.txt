@@ -4,7 +4,6 @@ fish-audio-sdk
 openai
 pandas
 psutil
-PyAutoGUI
 Requests
 urllib3
 certifi
@@ -12,7 +11,6 @@ snownlp
 SQLAlchemy
 tenacity
 Werkzeug
-wxautold==3.9.11.17.5
 apscheduler==3.10.4
 python-dateutil==2.9.0.post0
 dateparser==1.2.0
@@ -20,8 +18,8 @@ pygame
 pytz==2024.1
 python-dotenv==1.0.1
 schedule
-uiautomation
 emoji==2.10.1
 cryptography>=3.0.0
 zhdate
 httpx-ws==0.7.2
+pycryptodome>=3.20.0

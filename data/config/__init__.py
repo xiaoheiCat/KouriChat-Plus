@@ -118,6 +118,17 @@ class IntentRecognitionSettings:
     temperature: float
 
 @dataclass
+class WeComSettings:
+    corp_id: str
+    corp_secret: str
+    agent_id: str
+    callback_token: str
+    callback_aes_key: str
+    port: int = 8081
+    callback_path: str = '/wecom/callback'
+    enable_markdown: bool = False
+
+@dataclass
 class Config:
     def __init__(self):
         self.user: UserSettings
@@ -127,6 +138,7 @@ class Config:
         self.auth: AuthSettings
         self.network_search: NetworkSearchSettings
         self.intent_recognition: IntentRecognitionSettings
+        self.wecom: WeComSettings
         self.version: str = "1.0.0"  # 配置文件版本
         self.load_config()
 
@@ -507,6 +519,19 @@ class Config:
                     base_url=intent_recognition_data.get('base_url', {}).get('value', 'https://api.kourichat.com/v1'),
                     model=intent_recognition_data.get('model', {}).get('value', 'kourichat-v3'),
                     temperature=float(intent_recognition_data.get('temperature', {}).get('value', 0.1))
+                )
+
+                # 企业微信设置
+                wecom_data = categories.get('wecom_settings', {}).get('settings', {})
+                self.wecom = WeComSettings(
+                    corp_id=wecom_data.get('corp_id', {}).get('value', ''),
+                    corp_secret=wecom_data.get('corp_secret', {}).get('value', ''),
+                    agent_id=wecom_data.get('agent_id', {}).get('value', ''),
+                    callback_token=wecom_data.get('callback_token', {}).get('value', ''),
+                    callback_aes_key=wecom_data.get('callback_aes_key', {}).get('value', ''),
+                    port=int(wecom_data.get('port', {}).get('value', 8081)),
+                    callback_path=wecom_data.get('callback_path', {}).get('value', '/wecom/callback'),
+                    enable_markdown=bool(wecom_data.get('enable_markdown', {}).get('value', False))
                 )
 
                 logger.info("配置加载完成")
