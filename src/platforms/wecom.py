@@ -40,7 +40,7 @@ class WeCom:
     def __init__(self, corp_id: str, corp_secret: str, agent_id: str,
                  callback_token: str, callback_aes_key: str,
                  port: int = 8081, callback_path: str = '/wecom/callback',
-                 enable_markdown: bool = False):
+                 enable_markdown: bool = False, proxy_url: str = ''):
         self.corp_id = corp_id
         self.corp_secret = corp_secret
         self.agent_id = agent_id
@@ -49,6 +49,9 @@ class WeCom:
         self.port = port
         self.callback_path = callback_path
         self.enable_markdown = enable_markdown
+
+        # 代理配置
+        self.proxies = {'http': proxy_url, 'https': proxy_url} if proxy_url else None
 
         # access_token 缓存
         self._access_token = ''
@@ -263,7 +266,7 @@ class WeCom:
                 'safe': 0,
                 **payload_extra,
             }
-            resp = requests.post(url, json=payload, timeout=15)
+            resp = requests.post(url, json=payload, timeout=15, proxies=self.proxies)
             result = resp.json()
             if result.get('errcode') != 0:
                 logger.error(f"企业微信发送消息失败: {result}")
@@ -280,7 +283,7 @@ class WeCom:
 
             url = (f'https://qyapi.weixin.qq.com/cgi-bin/gettoken'
                    f'?corpid={self.corp_id}&corpsecret={self.corp_secret}')
-            resp = requests.get(url, timeout=15)
+            resp = requests.get(url, timeout=15, proxies=self.proxies)
             data = resp.json()
             if data.get('errcode', 0) != 0:
                 raise RuntimeError(f"获取 access_token 失败: {data}")
@@ -294,7 +297,7 @@ class WeCom:
         """下载临时媒体文件"""
         token = self._get_access_token()
         url = f'https://qyapi.weixin.qq.com/cgi-bin/media/get?access_token={token}&media_id={media_id}'
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(url, timeout=30, proxies=self.proxies)
         return resp.content
 
     def _upload_media(self, file_path: str, media_type: str = 'image') -> str:
@@ -303,7 +306,7 @@ class WeCom:
         url = f'https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token={token}&type={media_type}'
         filename = os.path.basename(file_path)
         with open(file_path, 'rb') as f:
-            resp = requests.post(url, files={'media': (filename, f)}, timeout=30)
+            resp = requests.post(url, files={'media': (filename, f)}, timeout=30, proxies=self.proxies)
         result = resp.json()
         if result.get('errcode', 0) != 0:
             logger.error(f"上传媒体素材失败: {result}")

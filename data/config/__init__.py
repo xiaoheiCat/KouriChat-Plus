@@ -127,6 +127,7 @@ class WeComSettings:
     port: int = 8081
     callback_path: str = '/wecom/callback'
     enable_markdown: bool = False
+    proxy_url: str = ''  # HTTP/HTTPS/SOCKS5 代理地址，如 http://127.0.0.1:7890
 
 @dataclass
 class Config:

@@ -429,6 +429,7 @@ def initialize_wecom():
         port=cfg.port,
         callback_path=cfg.callback_path,
         enable_markdown=cfg.enable_markdown,
+        proxy_url=cfg.proxy_url,
     )
     wecom.set_message_handler(wecom_message_handler)
     wecom.start()
