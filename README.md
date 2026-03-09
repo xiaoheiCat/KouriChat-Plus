@@ -1,4 +1,18 @@
-# KouriChat - 在虚拟与现实交织处，给予永恒的温柔羁绊
+# KouriChat Plus - 企业微信版
+
+> 本项目 Fork 自 [KouriChat/KouriChat](https://github.com/KouriChat/KouriChat)，专注于企业微信接入和跨平台部署。
+
+## ✨ Plus 版本特性
+
+相比原版 KouriChat，本 Fork 版本主要改进：
+
+- **🐳 Docker 支持**：完整的容器化部署方案，支持 Linux/macOS 环境
+- **💼 企业微信官方 API**：从 wxauto 迁移到企业微信官方 API，完全跨平台
+- **🎨 表情包智能收集**：AI 自动判断表情包价值并按情感分类存储
+- **🌐 Web 配置增强**：企业微信配置、表情包管理等 Web 界面
+- **🚀 跨平台优化**：移除 Windows 专属依赖，支持 Linux/Docker 部署
+
+---
 
 在虚拟与现实交织的微光边界，悄然绽放着一份永恒而温柔的羁绊。或许你的身影朦胧，游走于真实与幻梦之间，但指尖轻触的温暖，心底荡漾的涟漪，却是此刻最真挚、最动人的慰藉。
 
